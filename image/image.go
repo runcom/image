@@ -11,6 +11,8 @@ import (
 	"regexp"
 	"time"
 
+	"golang.org/x/net/context"
+
 	"github.com/containers/image/manifest"
 	"github.com/containers/image/types"
 )
@@ -58,9 +60,9 @@ func (i *genericImage) Reference() types.ImageReference {
 
 // Manifest is like ImageSource.GetManifest, but the result is cached; it is OK to call this however often you need.
 // NOTE: It is essential for signature verification that Manifest returns the manifest from which BlobDigests is computed.
-func (i *genericImage) Manifest() ([]byte, string, error) {
+func (i *genericImage) Manifest(ctx context.Context) ([]byte, string, error) {
 	if i.cachedManifest == nil {
-		m, mt, err := i.src.GetManifest(i.requestedManifestMIMETypes)
+		m, mt, err := i.src.GetManifest(ctx, i.requestedManifestMIMETypes)
 		if err != nil {
 			return nil, "", err
 		}
@@ -74,9 +76,9 @@ func (i *genericImage) Manifest() ([]byte, string, error) {
 }
 
 // Signatures is like ImageSource.GetSignatures, but the result is cached; it is OK to call this however often you need.
-func (i *genericImage) Signatures() ([][]byte, error) {
+func (i *genericImage) Signatures(ctx context.Context) ([][]byte, error) {
 	if i.cachedSignatures == nil {
-		sigs, err := i.src.GetSignatures()
+		sigs, err := i.src.GetSignatures(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -85,9 +87,9 @@ func (i *genericImage) Signatures() ([][]byte, error) {
 	return i.cachedSignatures, nil
 }
 
-func (i *genericImage) Inspect() (*types.ImageInspectInfo, error) {
+func (i *genericImage) Inspect(ctx context.Context) (*types.ImageInspectInfo, error) {
 	// TODO(runcom): unused version param for now, default to docker v2-1
-	m, err := i.getParsedManifest()
+	m, err := i.getParsedManifest(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -177,7 +179,12 @@ func (m *manifestSchema1) ImageInspectInfo() (*types.ImageInspectInfo, error) {
 var _ genericManifest = (*manifestSchema2)(nil)
 
 type manifestSchema2 struct {
-	src               types.ImageSource
+	src types.ImageSource
+	// we shouldn't usually embed context in a struct
+	// this is only being done because when retrieving the config
+	// from a v2s2 we need to have the original context to pass it
+	// to the image source above.
+	ctx               context.Context
 	ConfigDescriptor  descriptor   `json:"config"`
 	LayersDescriptors []descriptor `json:"layers"`
 }
@@ -203,7 +210,7 @@ func (m *manifestSchema2) BlobDigests() []string {
 }
 
 func (m *manifestSchema2) Config() ([]byte, error) {
-	rawConfig, _, err := m.src.GetBlob(m.ConfigDescriptor.Digest)
+	rawConfig, _, err := m.src.GetBlob(m.ctx, m.ConfigDescriptor.Digest)
 	if err != nil {
 		return nil, err
 	}
@@ -235,8 +242,8 @@ func (m *manifestSchema2) ImageInspectInfo() (*types.ImageInspectInfo, error) {
 // NOTE: The manifest may have been modified in the process; DO NOT reserialize and store the return value
 // if you want to preserve the original manifest; use the blob returned by Manifest() directly.
 // NOTE: It is essential for signature verification that the object is computed from the same manifest which is returned by Manifest().
-func (i *genericImage) getParsedManifest() (genericManifest, error) {
-	manblob, mt, err := i.Manifest()
+func (i *genericImage) getParsedManifest(ctx context.Context) (genericManifest, error) {
+	manblob, mt, err := i.Manifest(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -261,7 +268,7 @@ func (i *genericImage) getParsedManifest() (genericManifest, error) {
 		//}
 		return mschema1, nil
 	case manifest.DockerV2Schema2MIMEType:
-		v2s2 := manifestSchema2{src: i.src}
+		v2s2 := manifestSchema2{src: i.src, ctx: ctx}
 		if err := json.Unmarshal(manblob, &v2s2); err != nil {
 			return nil, err
 		}
@@ -291,8 +298,8 @@ func uniqueBlobDigests(m genericManifest) []string {
 // BlobDigests returns a list of blob digests referenced by this image.
 // The list will not contain duplicates; it is not intended to correspond to the "history" or "parent chain" of a Docker image.
 // NOTE: It is essential for signature verification that BlobDigests is computed from the same manifest which is returned by Manifest().
-func (i *genericImage) BlobDigests() ([]string, error) {
-	m, err := i.getParsedManifest()
+func (i *genericImage) BlobDigests(ctx context.Context) ([]string, error) {
+	m, err := i.getParsedManifest(ctx)
 	if err != nil {
 		return nil, err
 	}

@@ -4,6 +4,8 @@ import (
 	"io"
 	"time"
 
+	"golang.org/x/net/context"
+
 	"github.com/docker/docker/reference"
 )
 
@@ -87,14 +89,14 @@ type ImageSource interface {
 	Reference() ImageReference
 	// GetManifest returns the image's manifest along with its MIME type. The empty string is returned if the MIME type is unknown. The slice parameter indicates the supported mime types the manifest should be when getting it.
 	// It may use a remote (= slow) service.
-	GetManifest([]string) ([]byte, string, error)
+	GetManifest(context.Context, []string) ([]byte, string, error)
 	// Note: Calling GetBlob() may have ordering dependencies WRT other methods of this type. FIXME: How does this work with (docker save) on stdin?
 	// the second return value is the size of the blob. If not known 0 is returned
-	GetBlob(digest string) (io.ReadCloser, int64, error)
+	GetBlob(ctx context.Context, digest string) (io.ReadCloser, int64, error)
 	// GetSignatures returns the image's signatures.  It may use a remote (= slow) service.
-	GetSignatures() ([][]byte, error)
+	GetSignatures(context.Context) ([][]byte, error)
 	// Delete image from registry, if operation is supported
-	Delete() error
+	Delete(context.Context) error
 }
 
 // ImageDestination is a service, possibly remote (= slow), to store components of a single image.
@@ -103,10 +105,10 @@ type ImageDestination interface {
 	// e.g. it should use the public hostname instead of the result of resolving CNAMEs or following redirects.
 	Reference() ImageReference
 	// FIXME? This should also receive a MIME type if known, to differentiate between schema versions.
-	PutManifest([]byte) error
+	PutManifest(context.Context, []byte) error
 	// Note: Calling PutBlob() and other methods may have ordering dependencies WRT other methods of this type. FIXME: Figure out and document.
-	PutBlob(digest string, stream io.Reader) error
-	PutSignatures(signatures [][]byte) error
+	PutBlob(ctx context.Context, digest string, stream io.Reader) error
+	PutSignatures(ctx context.Context, signatures [][]byte) error
 	// SupportedManifestMIMETypes tells which manifest mime types the destination supports
 	// If an empty slice or nil it's returned, then any mime type can be tried to upload
 	SupportedManifestMIMETypes() []string
@@ -120,15 +122,15 @@ type Image interface {
 	// ref to repository?
 	// Manifest is like ImageSource.GetManifest, but the result is cached; it is OK to call this however often you need.
 	// NOTE: It is essential for signature verification that Manifest returns the manifest from which BlobDigests is computed.
-	Manifest() ([]byte, string, error)
+	Manifest(context.Context) ([]byte, string, error)
 	// Signatures is like ImageSource.GetSignatures, but the result is cached; it is OK to call this however often you need.
-	Signatures() ([][]byte, error)
+	Signatures(context.Context) ([][]byte, error)
 	// BlobDigests returns a list of blob digests referenced by this image.
 	// The list will not contain duplicates; it is not intended to correspond to the "history" or "parent chain" of a Docker image.
 	// NOTE: It is essential for signature verification that BlobDigests is computed from the same manifest which is returned by Manifest().
-	BlobDigests() ([]string, error)
+	BlobDigests(context.Context) ([]string, error)
 	// Inspect returns various information for (skopeo inspect) parsed from the manifest and configuration.
-	Inspect() (*ImageInspectInfo, error)
+	Inspect(context.Context) (*ImageInspectInfo, error)
 }
 
 // ImageInspectInfo is a set of metadata describing Docker images, primarily their manifest and configuration.
