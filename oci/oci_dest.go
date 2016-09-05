@@ -10,21 +10,9 @@ import (
 
 	"github.com/containers/image/manifest"
 	"github.com/containers/image/types"
+	imgspec "github.com/opencontainers/image-spec/specs-go"
+	imgspecv1 "github.com/opencontainers/image-spec/specs-go/v1"
 )
-
-type ociManifest struct {
-	SchemaVersion int               `json:"schemaVersion"`
-	MediaType     string            `json:"mediaType"`
-	Config        descriptor        `json:"config"`
-	Layers        []descriptor      `json:"layers"`
-	Annotations   map[string]string `json:"annotations"`
-}
-
-type descriptor struct {
-	Digest    string `json:"digest"`
-	MediaType string `json:"mediaType"`
-	Size      int64  `json:"size"`
-}
 
 type ociImageDestination struct {
 	ref ociReference
@@ -42,7 +30,7 @@ func (d *ociImageDestination) Reference() types.ImageReference {
 }
 
 func createManifest(m []byte) ([]byte, string, error) {
-	om := ociManifest{}
+	om := imgspecv1.Manifest{}
 	mt := manifest.GuessMIMEType(m)
 	switch mt {
 	case manifest.DockerV2Schema1MIMEType:
@@ -55,11 +43,11 @@ func createManifest(m []byte) ([]byte, string, error) {
 		if err := json.Unmarshal(m, &om); err != nil {
 			return nil, "", err
 		}
-		om.MediaType = manifest.OCIV1ImageManifestMIMEType
+		om.MediaType = imgspecv1.MediaTypeImageManifest
 		for i := range om.Layers {
-			om.Layers[i].MediaType = manifest.OCIV1ImageSerializationMIMEType
+			om.Layers[i].MediaType = imgspecv1.MediaTypeImageSerialization
 		}
-		om.Config.MediaType = manifest.OCIV1ImageSerializationConfigMIMEType
+		om.Config.MediaType = imgspecv1.MediaTypeImageSerializationConfig
 		b, err := json.Marshal(om)
 		if err != nil {
 			return nil, "", err
@@ -67,10 +55,10 @@ func createManifest(m []byte) ([]byte, string, error) {
 		return b, om.MediaType, nil
 	case manifest.DockerV2ListMIMEType:
 		return nil, "", fmt.Errorf("can't create OCI manifest from Docker V2 schema 2 manifest list")
-	case manifest.OCIV1ImageManifestListMIMEType:
+	case imgspecv1.MediaTypeImageManifestList:
 		return nil, "", fmt.Errorf("can't create OCI manifest from OCI manifest list")
-	case manifest.OCIV1ImageManifestMIMEType:
-		return m, om.MediaType, nil
+	case imgspecv1.MediaTypeImageManifest:
+		return m, mt, nil
 	}
 	return nil, "", fmt.Errorf("Unrecognized manifest media type")
 }
@@ -86,7 +74,7 @@ func (d *ociImageDestination) PutManifest(m []byte) error {
 	if err != nil {
 		return err
 	}
-	desc := descriptor{}
+	desc := imgspec.Descriptor{}
 	desc.Digest = digest
 	// TODO(runcom): beaware and add support for OCI manifest list
 	desc.MediaType = mt
@@ -168,7 +156,7 @@ func ensureParentDirectoryExists(path string) error {
 
 func (d *ociImageDestination) SupportedManifestMIMETypes() []string {
 	return []string{
-		manifest.OCIV1ImageManifestMIMEType,
+		imgspecv1.MediaTypeImageManifest,
 		manifest.DockerV2Schema2MIMEType,
 	}
 }
