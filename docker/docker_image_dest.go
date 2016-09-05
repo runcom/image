@@ -74,23 +74,24 @@ func (d *dockerImageDestination) PutManifest(m []byte) error {
 	return nil
 }
 
-// PutBlob writes contents of stream as a blob identified by digest.
+// PutBlob writes contents of stream and returns its computed digest and size (both if can be computed).
+// A digest can be optionally provided if known, the specific image destination can decide to play with it or not.
 // WARNING: The contents of stream are being verified on the fly.  Until stream.Read() returns io.EOF, the contents of the data SHOULD NOT be available
 // to any other readers for download using the supplied digest.
 // If stream.Read() at any time, ESPECIALLY at end of input, returns an error, PutBlob MUST 1) fail, and 2) delete any data stored so far.
 // Note: Calling PutBlob() and other methods may have ordering dependencies WRT other methods of this type. FIXME: Figure out and document.
-func (d *dockerImageDestination) PutBlob(digest string, stream io.Reader) error {
+func (d *dockerImageDestination) PutBlob(stream io.Reader, digest string) (string, int64, error) {
 	checkURL := fmt.Sprintf(blobsURL, d.ref.ref.RemoteName(), digest)
 
 	logrus.Debugf("Checking %s", checkURL)
 	res, err := d.c.makeRequest("HEAD", checkURL, nil, nil)
 	if err != nil {
-		return err
+		return "", -1, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode == http.StatusOK && res.Header.Get("Docker-Content-Digest") == digest {
 		logrus.Debugf("... already exists, not uploading")
-		return nil
+		return "", -1, nil
 	}
 	logrus.Debugf("... failed, status %d", res.StatusCode)
 
@@ -99,16 +100,16 @@ func (d *dockerImageDestination) PutBlob(digest string, stream io.Reader) error 
 	logrus.Debugf("Uploading %s", uploadURL)
 	res, err = d.c.makeRequest("POST", uploadURL, nil, nil)
 	if err != nil {
-		return err
+		return "", -1, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusAccepted {
 		logrus.Debugf("Error initiating layer upload, response %#v", *res)
-		return fmt.Errorf("Error initiating layer upload to %s, status %d", uploadURL, res.StatusCode)
+		return "", -1, fmt.Errorf("Error initiating layer upload to %s, status %d", uploadURL, res.StatusCode)
 	}
 	uploadLocation, err := res.Location()
 	if err != nil {
-		return fmt.Errorf("Error determining upload URL: %s", err.Error())
+		return "", -1, fmt.Errorf("Error determining upload URL: %s", err.Error())
 	}
 
 	// FIXME: DELETE uploadLocation on failure
@@ -118,16 +119,16 @@ func (d *dockerImageDestination) PutBlob(digest string, stream io.Reader) error 
 	uploadLocation.RawQuery = locationQuery.Encode()
 	res, err = d.c.makeRequestToResolvedURL("PUT", uploadLocation.String(), map[string][]string{"Content-Type": {"application/octet-stream"}}, stream)
 	if err != nil {
-		return err
+		return "", -1, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusCreated {
 		logrus.Debugf("Error uploading layer, response %#v", *res)
-		return fmt.Errorf("Error uploading layer to %s, status %d", uploadLocation, res.StatusCode)
+		return "", -1, fmt.Errorf("Error uploading layer to %s, status %d", uploadLocation, res.StatusCode)
 	}
 
 	logrus.Debugf("Upload of layer %s complete", digest)
-	return nil
+	return "", -1, nil
 }
 
 func (d *dockerImageDestination) PutSignatures(signatures [][]byte) error {
