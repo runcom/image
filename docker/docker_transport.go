@@ -6,7 +6,7 @@ import (
 
 	"github.com/containers/image/docker/policyconfiguration"
 	"github.com/containers/image/types"
-	"github.com/docker/docker/reference"
+	"github.com/containers/image/docker/reference"
 )
 
 // Transport is an ImageTransport for Docker registry-hosted images.

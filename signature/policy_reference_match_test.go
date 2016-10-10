@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/containers/image/types"
-	"github.com/docker/docker/reference"
+	"github.com/containers/image/docker/reference"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

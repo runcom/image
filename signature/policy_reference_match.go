@@ -7,7 +7,7 @@ import (
 
 	"github.com/containers/image/transports"
 	"github.com/containers/image/types"
-	"github.com/docker/docker/reference"
+	"github.com/containers/image/docker/reference"
 )
 
 // parseImageAndDockerReference converts an image and a reference string into two parsed entities, failing on any error and handling unidentified images.

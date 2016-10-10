@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/containers/image/types"
-	"github.com/docker/docker/reference"
+	"github.com/containers/image/docker/reference"
 )
 
 // nameOnlyImageMock is a mock of types.Image which only allows transports.ImageName to work

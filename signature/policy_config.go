@@ -22,7 +22,7 @@ import (
 
 	"github.com/containers/image/transports"
 	"github.com/containers/image/types"
-	"github.com/docker/docker/reference"
+	"github.com/containers/image/docker/reference"
 )
 
 // systemDefaultPolicyPath is the policy path used for DefaultPolicy().
