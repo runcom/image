@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"net/http/httputil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -230,10 +231,14 @@ func (c *dockerClient) makeRequestToResolvedURL(method, url string, headers map[
 		}
 	}
 	logrus.Debugf("%s %s", method, url)
+	dro, _ := httputil.DumpRequestOut(req, false)
+	logrus.Errorf("===REQ===\n%s\n===REQ===\n", dro)
 	res, err := c.client.Do(req)
 	if err != nil {
 		return nil, err
 	}
+	dr, _ := httputil.DumpResponse(res, false)
+	logrus.Errorf("===RES===\n%s\n===RES===\n", dr)
 	return res, nil
 }
 
@@ -259,10 +264,14 @@ func (c *dockerClient) setupRequestAuth(req *http.Request) error {
 		// Do not use the body stream, or we couldn't reuse it for the "real" call later.
 		testReq.Body = nil
 		testReq.ContentLength = 0
+		dro, _ := httputil.DumpRequestOut(&testReq, false)
+		logrus.Errorf("===REQ===\n%s\n===REQ===\n", dro)
 		res, err := c.client.Do(&testReq)
 		if err != nil {
 			return err
 		}
+		dr, _ := httputil.DumpResponse(res, false)
+		logrus.Errorf("===RES===\n%s\n===RES===\n", dr)
 		chs := parseAuthHeader(res.Header)
 		// We could end up in this "if" statement if the /v2/ call (during ping)
 		// returned 401 with a valid WWW-Authenticate=Bearer header.
@@ -288,10 +297,14 @@ func (c *dockerClient) setupRequestAuth(req *http.Request) error {
 			testReq2.Body = nil
 			testReq2.ContentLength = 0
 			testReq2.SetBasicAuth(c.username, c.password)
+			dro, _ := httputil.DumpRequestOut(&testReq2, false)
+			logrus.Errorf("===REQ===\n%s\n===REQ===\n", dro)
 			res, err := c.client.Do(&testReq2)
 			if err != nil {
 				return err
 			}
+			dr, _ := httputil.DumpResponse(res, false)
+			logrus.Errorf("===RES===\n%s\n===RES===\n", dr)
 			chs = parseAuthHeader(res.Header)
 			if res.StatusCode != http.StatusUnauthorized || chs == nil || len(chs) == 0 {
 				// no need for bearer? wtf?
@@ -340,10 +353,14 @@ func (c *dockerClient) getBearerToken(realm, service, scope string) (string, err
 	// TODO(runcom): insecure for now to contact the external token service
 	tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	client := &http.Client{Transport: tr}
+	dro, _ := httputil.DumpRequestOut(authReq, false)
+	logrus.Errorf("===REQ===\n%s\n===REQ===\n", dro)
 	res, err := client.Do(authReq)
 	if err != nil {
 		return "", err
 	}
+	dr, _ := httputil.DumpResponse(res, false)
+	logrus.Errorf("===RES===\n%s\n===RES===\n", dr)
 	defer res.Body.Close()
 	switch res.StatusCode {
 	case http.StatusUnauthorized:

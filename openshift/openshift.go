@@ -8,6 +8,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"net/http/httputil"
 	"net/url"
 	"strings"
 
@@ -94,18 +95,20 @@ func (c *openshiftClient) doRequest(method, path string, requestBody []byte) ([]
 	}
 
 	logrus.Debugf("%s %s", method, url)
+	dro, _ := httputil.DumpRequestOut(req, false)
+	logrus.Errorf("===REQ===\n%s\n===REQ===\n", dro)
 	res, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
+	dr, _ := httputil.DumpResponse(res, false)
+	logrus.Errorf("===RES===\n%s\n===RES===\n", dr)
 	defer res.Body.Close()
 	body, err := ioutil.ReadAll(res.Body)
 	if err != nil {
 		return nil, err
 	}
-	logrus.Debugf("Got body: %s", body)
-	// FIXME: Just throwing this useful information away only to try to guess later...
-	logrus.Debugf("Got content-type: %s", res.Header.Get("Content-Type"))
+	// FIXME: Just throwing Content-Type away only to try to guess later...
 
 	var status status
 	statusValid := false
