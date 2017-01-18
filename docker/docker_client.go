@@ -274,25 +274,8 @@ func (c *dockerClient) setupRequestAuth(req *http.Request) error {
 		logrus.Errorf("===RES===\n%s\n===RES===\n", dr)
 		chs := parseAuthHeader(res.Header)
 		if res.StatusCode != http.StatusUnauthorized || chs == nil || len(chs) == 0 {
-			// try again one last time with Basic Auth (gcr.io for instance)
-			testReq2 := *req
-			// Do not use the body stream, or we couldn't reuse it for the "real" call later.
-			testReq2.Body = nil
-			testReq2.ContentLength = 0
-			testReq2.SetBasicAuth(c.username, c.password)
-			dro, _ := httputil.DumpRequestOut(&testReq2, false)
-			logrus.Errorf("===REQ===\n%s\n===REQ===\n", dro)
-			res, err := c.client.Do(&testReq2)
-			if err != nil {
-				return err
-			}
-			dr, _ := httputil.DumpResponse(res, false)
-			logrus.Errorf("===RES===\n%s\n===RES===\n", dr)
-			chs = parseAuthHeader(res.Header)
-			if res.StatusCode != http.StatusUnauthorized || chs == nil || len(chs) == 0 {
-				// no need for bearer? wtf?
-				return nil
-			}
+			// no need for bearer? wtf?
+			return nil
 		}
 		// Arbitrarily use the first challenge, there is no reason to expect more than one.
 		challenge := chs[0]
