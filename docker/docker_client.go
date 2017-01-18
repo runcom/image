@@ -273,9 +273,34 @@ func (c *dockerClient) setupRequestAuth(req *http.Request) error {
 		dr, _ := httputil.DumpResponse(res, false)
 		logrus.Errorf("===RES===\n%s\n===RES===\n", dr)
 		chs := parseAuthHeader(res.Header)
+		// We could end up in this "if" statement if the /v2/ call (during ping)
+		// returned 401 with a valid WWW-Authenticate=Bearer header.
+		// That doesn't **always** mean, however, that the specific API request
+		// (different from /v2/) actually needs to be authorized.
+		// One example of this _weird_ scenario happens with GCR.io docker
+		// registries.
 		if res.StatusCode != http.StatusUnauthorized || chs == nil || len(chs) == 0 {
-			// no need for bearer? wtf?
-			return nil
+			// gcr.io private repositories pull instead requires us to send user:pass pair in
+			// order to retrieve a token and setup the correct Bearer token.
+			// try again one last time with Basic Auth
+			testReq2 := *req
+			// Do not use the body stream, or we couldn't reuse it for the "real" call later.
+			testReq2.Body = nil
+			testReq2.ContentLength = 0
+			testReq2.SetBasicAuth(c.username, c.password)
+			dro, _ := httputil.DumpRequestOut(&testReq2, false)
+			logrus.Errorf("===REQ===\n%s\n===REQ===\n", dro)
+			res, err := c.client.Do(&testReq2)
+			if err != nil {
+				return err
+			}
+			dr, _ := httputil.DumpResponse(res, false)
+			logrus.Errorf("===RES===\n%s\n===RES===\n", dr)
+			chs = parseAuthHeader(res.Header)
+			if res.StatusCode != http.StatusUnauthorized || chs == nil || len(chs) == 0 {
+				// no need for bearer? wtf?
+				return nil
+			}
 		}
 		// Arbitrarily use the first challenge, there is no reason to expect more than one.
 		challenge := chs[0]
