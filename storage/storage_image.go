@@ -344,6 +344,7 @@ func (s *storageImageDestination) PutBlob(ctx context.Context, stream io.Reader,
 		}
 	}
 	diffID := digest.Canonical.Digester()
+	// TODO(runcom): maybe needs locking here
 	filename := s.computeNextBlobCacheFile()
 	file, err := os.OpenFile(filename, os.O_CREATE|os.O_TRUNC|os.O_WRONLY|os.O_EXCL, 0600)
 	if err != nil {
@@ -371,6 +372,7 @@ func (s *storageImageDestination) PutBlob(ctx context.Context, stream io.Reader,
 		return errorBlobInfo, ErrBlobSizeMismatch
 	}
 	// Record information about the blob.
+	// TODO(runcom): needs locking here
 	s.blobDiffIDs[hasher.Digest()] = diffID.Digest()
 	s.fileSizes[hasher.Digest()] = counter.Count
 	s.filenames[hasher.Digest()] = filename
@@ -403,6 +405,7 @@ func (s *storageImageDestination) HasBlob(ctx context.Context, blobinfo types.Bl
 		return false, -1, errors.Wrapf(err, `Can not check for a blob with invalid digest`)
 	}
 	// Check if we've already cached it in a file.
+	// TODO(runcom): needs locking, best effort?
 	if size, ok := s.fileSizes[blobinfo.Digest]; ok {
 		return true, size, nil
 	}
@@ -413,6 +416,7 @@ func (s *storageImageDestination) HasBlob(ctx context.Context, blobinfo types.Bl
 	}
 	if len(layers) > 0 {
 		// Save this for completeness.
+		// TODO(runcom): needs locking
 		s.blobDiffIDs[blobinfo.Digest] = layers[0].UncompressedDigest
 		return true, layers[0].UncompressedSize, nil
 	}
@@ -423,6 +427,7 @@ func (s *storageImageDestination) HasBlob(ctx context.Context, blobinfo types.Bl
 	}
 	if len(layers) > 0 {
 		// Record the uncompressed value so that we can use it to calculate layer IDs.
+		// TODO(runcom): needs locking
 		s.blobDiffIDs[blobinfo.Digest] = layers[0].UncompressedDigest
 		return true, layers[0].CompressedSize, nil
 	}
