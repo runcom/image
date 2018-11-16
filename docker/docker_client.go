@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/containers/image/docker/reference"
@@ -85,6 +86,10 @@ type dockerClient struct {
 	client        *http.Client
 	signatureBase signatureStorageBase
 	scope         authScope
+	// propertiesLock is the syncronization mechanism for all the properties
+	// below it. It's needed for being Goroutine safe when supporting concurrent
+	// operations on this struct.
+	propertiesLock sync.Mutex
 	// The following members are detected registry properties:
 	// They are set after a successful detectProperties(), and never change afterwards.
 	scheme             string // Empty value also used to indicate detectProperties() has not yet succeeded.
@@ -421,6 +426,8 @@ func (c *dockerClient) makeRequestToResolvedURL(ctx context.Context, method, url
 //
 // debugging: https://github.com/containers/image/pull/211#issuecomment-273426236 and follows up
 func (c *dockerClient) setupRequestAuth(req *http.Request) error {
+	c.propertiesLock.Lock()
+	defer c.propertiesLock.Unlock()
 	if len(c.challenges) == 0 {
 		return nil
 	}
@@ -508,6 +515,8 @@ func (c *dockerClient) getBearerToken(ctx context.Context, realm, service, scope
 // detectProperties detects various properties of the registry.
 // See the dockerClient documentation for members which are affected by this.
 func (c *dockerClient) detectProperties(ctx context.Context) error {
+	c.propertiesLock.Lock()
+	defer c.propertiesLock.Unlock()
 	if c.scheme != "" {
 		return nil
 	}
@@ -529,6 +538,7 @@ func (c *dockerClient) detectProperties(ctx context.Context) error {
 		c.supportsSignatures = resp.Header.Get("X-Registry-Supports-Signatures") == "1"
 		return nil
 	}
+
 	err := ping("https")
 	if err != nil && c.sys != nil && c.sys.DockerInsecureSkipTLSVerify {
 		err = ping("http")
