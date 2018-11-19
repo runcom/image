@@ -101,7 +101,7 @@ func (s storageImageSource) Close() error {
 
 // ConcurrentGetBlob returns false as this source does not
 // support concurrent calls to GetBlob
-func (s *storageImageSource) ConcurrentGetBlob() (bool) {
+func (s *storageImageSource) ConcurrentGetBlob() bool {
 	return false
 }
 
@@ -324,9 +324,9 @@ func (s *storageImageDestination) computeNextBlobCacheFile() string {
 }
 
 // ConcurrentPutBlob returns false as this destination does not support concurrent
-// calls to PutBlob, HasBlob, ReapplyBlob 
-func (d *storageImageDestination) ConcurrentPutBlob() (bool) {
-	return false
+// calls to PutBlob, HasBlob, ReapplyBlob
+func (d *storageImageDestination) ConcurrentPutBlob() bool {
+	return true
 }
 
 // PutBlob stores a layer or data blob in our temporary directory, checking that any information
